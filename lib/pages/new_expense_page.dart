@@ -1,5 +1,7 @@
-import 'package:baru/widgets/category_input_form.dart';
+import 'package:baru/utils/app_icons.dart';
+import 'package:baru/widgets/category_input_field.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:baru/model/transaction.dart';
@@ -19,20 +21,11 @@ class _NewExpensePageState extends State<NewExpensePage> {
   final _nominalController = TextEditingController();
   final _tanggalController = TextEditingController();
 
+  DateTime? _selectedDate;
   String _selectedCategoryName = 'Pilih Kategori';
-  IconData _selectedCategoryIcon = Icons.category;
-
-  final List<Map<String, dynamic>> _categories = [
-    {'name': 'Makanan', 'icon': Icons.fastfood, 'color': Colors.amber},
-    {'name': 'Internet', 'icon': Icons.wifi, 'color': Colors.cyan},
-    {'name': 'Edukasi', 'icon': Icons.school, 'color': Colors.brown},
-    {'name': 'Hadiah', 'icon': Icons.card_giftcard, 'color': Colors.red},
-    {'name': 'Transportasi', 'icon': Icons.car_rental, 'color': Colors.purple},
-    {'name': 'Belanja', 'icon': Icons.shopping_cart, 'color': Colors.green},
-    {'name': 'Alat Rumah', 'icon': Icons.home, 'color': Colors.pink},
-    {'name': 'Olahraga', 'icon': Icons.fitness_center, 'color': Colors.blue},
-    {'name': 'Hiburan', 'icon': Icons.movie, 'color': Colors.indigo},
-  ];
+  IconData? _selectedCategoryIcon = Icons.category;
+  String? _selectedCategoryAssetPath;
+  Color? _selectedCategoryIconColor;
 
   void _showCategoryPicker() async {
     final result = await showModalBottomSheet(
@@ -45,7 +38,10 @@ class _NewExpensePageState extends State<NewExpensePage> {
           padding: const EdgeInsets.all(20),
           decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -53,8 +49,14 @@ class _NewExpensePageState extends State<NewExpensePage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Pilih Kategori', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                  const Text(
+                    'Pilih Kategori',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -62,16 +64,26 @@ class _NewExpensePageState extends State<NewExpensePage> {
                 child: GridView.builder(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 20,
-                    childAspectRatio: 0.9,
+                    crossAxisSpacing: 5,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: 1.2,
                   ),
-                  itemCount: _categories.length,
+                  itemCount: categoryIcons.length,
                   itemBuilder: (context, index) {
-                    final category = _categories[index];
+                    final categoryName = categoryIcons.keys.elementAt(index);
+                    final categoryData = categoryIcons[categoryName]!;
+
                     return CategoryItem(
-                      name: category['name'], icon: category['icon'], color: category['color'],
-                      onTap: () => Navigator.pop(context, category),
+                      name: categoryName,
+                      iconData: categoryData.iconData,
+                      assetPath: categoryData.assetPath,
+                      color: categoryData.color,
+                      onTap: () {
+                        Navigator.pop(context, {
+                          'name': categoryName,
+                          'data': categoryData,
+                        });
+                      },
                     );
                   },
                 ),
@@ -85,7 +97,9 @@ class _NewExpensePageState extends State<NewExpensePage> {
     if (result != null) {
       setState(() {
         _selectedCategoryName = result['name'];
-        _selectedCategoryIcon = result['icon'];
+        final categoryData = result['data'];
+        _selectedCategoryIcon = categoryData.iconData;
+        _selectedCategoryAssetPath = categoryData.assetPath;
       });
     }
   }
@@ -101,28 +115,35 @@ class _NewExpensePageState extends State<NewExpensePage> {
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
     );
     if (picked != null) {
       setState(() {
+        _selectedDate = picked;
         _tanggalController.text = DateFormat('dd MMMM yyyy').format(picked);
       });
     }
   }
 
   void _simpanData() {
-    if (_formKey.currentState!.validate()) {
-      final transactionProvider = Provider.of<TransactionProvider>(context, listen: false);
+    if (_formKey.currentState!.validate() && _selectedDate != null) {
+      final transactionProvider = Provider.of<TransactionProvider>(
+        context,
+        listen: false,
+      );
       final newTransaction = Transaction(
         name: _namaController.text,
         category: _selectedCategoryName,
         amount: double.tryParse(_nominalController.text) ?? 0.0,
-        date: DateTime.now(),
+        date: _selectedDate!,
       );
       transactionProvider.addTransactions(newTransaction);
-      Navigator.pop(context, true); // Kembali ke halaman Home dan beritahu bahwa data telah diupdate
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pengeluaran berhasil disimpan!')),
+      );
+      Navigator.pop(context, true);
     }
   }
 
@@ -130,18 +151,25 @@ class _NewExpensePageState extends State<NewExpensePage> {
     return _namaController.text.isNotEmpty &&
         _nominalController.text.isNotEmpty &&
         _tanggalController.text.isNotEmpty &&
-        _selectedCategoryName != 'Pilih Kategori';
+        _selectedCategoryName != 'Pilih Kategori' &&
+        _selectedDate != null;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tambah Pengeluaran Baru', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: const Text(
+          'Tambah Pengeluaran Baru',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back_ios, color: Colors.black), onPressed: () => Navigator.pop(context)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -149,21 +177,82 @@ class _NewExpensePageState extends State<NewExpensePage> {
           key: _formKey,
           child: Column(
             children: [
-              TextFormField(controller: _namaController, decoration: const InputDecoration(labelText: 'Nama Pengeluaran', border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)))), validator: (value) => value == null || value.isEmpty ? 'Nama tidak boleh kosong' : null, onChanged: (_) => setState(() {})),
+              TextFormField(
+                controller: _namaController,
+                decoration: const InputDecoration(
+                  labelText: 'Nama Pengeluaran',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
+                ),
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Nama tidak boleh kosong'
+                    : null,
+                onChanged: (_) => setState(() {}),
+              ),
               const SizedBox(height: 20),
-              CategoryInputField(categoryName: _selectedCategoryName, categoryIcon: _selectedCategoryIcon, onTap: _showCategoryPicker),
+              CategoryInputField(
+                categoryName: _selectedCategoryName,
+                categoryIcon: _selectedCategoryIcon,
+                categoryAssetPath: _selectedCategoryAssetPath,
+                categoryIconColor: _selectedCategoryIconColor,
+                onTap: _showCategoryPicker,
+              ),
               const SizedBox(height: 20),
-              TextFormField(controller: _tanggalController, readOnly: true, onTap: () => _selectDate(context), decoration: InputDecoration(labelText: 'Tanggal Pengeluaran', border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))), suffixIcon: IconButton(icon: const Icon(Icons.calendar_today), onPressed: () => _selectDate(context))), validator: (value) => value == null || value.isEmpty ? 'Tanggal tidak boleh kosong' : null),
+              TextFormField(
+                controller: _tanggalController,
+                readOnly: true,
+                onTap: () => _selectDate(context),
+                decoration: InputDecoration(
+                  labelText: 'Tanggal Pengeluaran',
+                  border: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.calendar_today),
+                    onPressed: () => _selectDate(context),
+                  ),
+                ),
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Tanggal tidak boleh kosong'
+                    : null,
+              ),
               const SizedBox(height: 20),
-              TextFormField(controller: _nominalController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Nominal', border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)))), validator: (value) => value == null || value.isEmpty ? 'Nominal tidak boleh kosong' : null, onChanged: (_) => setState(() {})),
+              TextFormField(
+                controller: _nominalController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(
+                  labelText: 'Nominal',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
+                ),
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Nominal tidak boleh kosong'
+                    : null,
+                onChanged: (_) => setState(() {}),
+              ),
               const SizedBox(height: 40),
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
                   onPressed: _isFormValid ? _simpanData : null,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  child: const Text('Simpan', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade700,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                  ),
+                  child: const Text(
+                    'Simpan',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
             ],

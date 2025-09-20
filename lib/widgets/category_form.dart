@@ -28,10 +28,7 @@ class CategoryForm extends StatelessWidget {
             const SizedBox(width: 12),
             Text(
               categoryName,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade700,
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
             ),
             const Spacer(),
             const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),

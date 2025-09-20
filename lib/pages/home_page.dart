@@ -1,11 +1,11 @@
+import 'package:baru/utils/app_icons.dart';
+import 'package:flutter/material.dart';
 import 'package:baru/model/transaction.dart';
 import 'package:baru/pages/new_expense_page.dart';
 import 'package:baru/provider/transaction_provider.dart';
-import 'package:baru/utils/custom_icon.dart';
 import 'package:baru/widgets/category_list.dart';
 import 'package:baru/widgets/summary_card.dart';
 import 'package:baru/widgets/transaction_tile.dart';
-import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -32,7 +32,6 @@ class _HomePageState extends State<HomePage> {
     super.initState();
   }
 
-  //total pengeluaran
   String _calculateTotalAmount(List<Transaction> transactions) {
     final total = transactions.fold<double>(
       0,
@@ -41,7 +40,6 @@ class _HomePageState extends State<HomePage> {
     return _currencyFormat.format(total);
   }
 
-  //total pengeluaran hari ini
   String _calculateDailyAmount(List<Transaction> transactions) {
     final today = DateTime.now();
     final dailyTransactions = transactions
@@ -59,18 +57,54 @@ class _HomePageState extends State<HomePage> {
     return _currencyFormat.format(total);
   }
 
+  Map<String, List<Transaction>> _groupTransactionsByDate(
+    List<Transaction> transactions,
+  ) {
+    Map<String, List<Transaction>> groupedTransactions = {};
+    for (var transaction in transactions) {
+      String dateKey = DateFormat('yyyy-MM-dd').format(transaction.date);
+      if (!groupedTransactions.containsKey(dateKey)) {
+        groupedTransactions[dateKey] = [];
+      }
+      groupedTransactions[dateKey]!.add(transaction);
+    }
+    return groupedTransactions;
+  }
+
+  String _getDateHeader(String dateString) {
+    DateTime date = DateTime.parse(dateString);
+    DateTime today = DateTime.now();
+    DateTime yesterday = today.subtract(const Duration(days: 1));
+
+    if (date.year == today.year &&
+        date.month == today.month &&
+        date.day == today.day) {
+      return 'Hari Ini';
+    } else if (date.year == yesterday.year &&
+        date.month == yesterday.month &&
+        date.day == yesterday.day) {
+      return 'Kemarin';
+    } else {
+      return DateFormat('EEEE, dd MMMM yyyy').format(date);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final transactionProvider = context.watch<TransactionProvider>();
     final transactions = transactionProvider.transactions;
 
     final totalDailyAmount = _calculateDailyAmount(transactions);
-    final totalMountAmount = _calculateTotalAmount(transactions);
+    final totalMonthlyAmount = _calculateTotalAmount(transactions);
+
+    final groupedTransactions = _groupTransactionsByDate(transactions);
+    final sortedDates = groupedTransactions.keys.toList()
+      ..sort((a, b) => b.compareTo(a));
 
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          physics: BouncingScrollPhysics(),
+          physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,60 +126,82 @@ class _HomePageState extends State<HomePage> {
                     child: SummaryCard(
                       title: 'Pengeluaranmu\nhari ini',
                       amount: totalDailyAmount,
-                      color: Color(0xFF5669FF),
+                      color: const Color(0xFF0A97B0),
                     ),
                   ),
                   const SizedBox(width: 15),
                   Expanded(
                     child: SummaryCard(
                       title: 'Pengeluaranmu\nbulan ini',
-                      amount: totalMountAmount,
-                      color: Color(0xFF26B69E),
+                      amount: totalMonthlyAmount,
+                      color: const Color(0xFF46B5A7),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 30),
+
               const Text(
                 'Pengeluaran berdasarkan kategori',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 15),
-
               SizedBox(
-                height: 130,
+                height: 140,
                 child: CategoryList(transactions: transactions),
               ),
               const SizedBox(height: 30),
-              const Text(
-                'Hari ini',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 15),
-              if (transactions.isEmpty)
-                const Center(child: Text('Tidak ada transaksi hari ini.'))
+
+              if (sortedDates.isEmpty)
+                const Center(child: Text('Tidak ada transaksi.'))
               else
                 ListView.builder(
                   physics: const NeverScrollableScrollPhysics(),
                   shrinkWrap: true,
-                  itemCount: transactions.length,
-                  itemBuilder: (context, index) {
-                    final transaction = transactions[index];
-                    final iconData =
-                        categoryIcons[transaction.category]?.icon ??
-                        Icons.error;
-                    final iconColor =
-                        categoryIcons[transaction.category]?.color ??
-                        Colors.grey;
+                  itemCount: sortedDates.length,
+                  itemBuilder: (context, dateIndex) {
+                    final dateKey = sortedDates[dateIndex];
+                    final dailyTransactions = groupedTransactions[dateKey]!;
 
-                    return TransactionTile(
-                      icon: iconData,
-                      iconColor: iconColor,
-                      title: transaction.name,
-                      amount: 'Rp. ${transaction.amount.toStringAsFixed(0)}',
-                      onDelete: () => transactionProvider.deleteTransaction(
-                        transaction.id!,
-                      ),
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _getDateHeader(dateKey),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        ListView.builder(
+                          physics: const NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
+                          itemCount: dailyTransactions.length,
+                          itemBuilder: (context, transactionIndex) {
+                            final transaction =
+                                dailyTransactions[transactionIndex];
+                            final categoryData =
+                                categoryIcons[transaction.category];
+                            if (categoryData == null) return const SizedBox();
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10.0),
+                              child: TransactionTile(
+                                iconData: categoryData.iconData,
+                                assetIcon: categoryData.assetPath,
+                                iconColor: categoryData.color,
+                                title: transaction.name,
+                                amount: _currencyFormat.format(
+                                  transaction.amount,
+                                ),
+                                // onDelete: () => transactionProvider.deleteTransaction(transaction.id!),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                      ],
                     );
                   },
                 ),
@@ -155,16 +211,15 @@ class _HomePageState extends State<HomePage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          final shouldRefresh = await Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const NewExpensePage()),
-          );
-
-          // Perbarui data jika halaman kembali dengan nilai `true`
+          final shouldRefresh = await Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (context) => NewExpensePage()));
           if (shouldRefresh != null && shouldRefresh) {
             transactionProvider.fetchTransactions();
           }
         },
-        backgroundColor: const Color(0xFF5669FF),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+        backgroundColor: const Color(0xFF0A97B0),
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );

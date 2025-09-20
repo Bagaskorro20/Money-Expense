@@ -1,18 +1,29 @@
 import 'package:flutter/material.dart';
 
 class CategoryItem extends StatelessWidget {
+  final String? assetPath;
+  final IconData? iconData;
   final String name;
-  final IconData icon;
   final Color color;
   final VoidCallback onTap;
 
   const CategoryItem({
     super.key,
+    this.assetPath,
+    this.iconData,
     required this.name,
-    required this.icon,
     required this.color,
     required this.onTap,
   });
+
+  Widget _buildIcon() {
+    if (assetPath != null) {
+      return Image.asset(assetPath!, width: 20, height: 20, color: color);
+    } else if (iconData != null) {
+      return Icon(iconData, size: 20, color: color);
+    }
+    return const SizedBox(width: 20, height: 20);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +37,7 @@ class CategoryItem extends StatelessWidget {
               color: color.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color),
+            child: _buildIcon(),
           ),
           const SizedBox(height: 8),
           Text(name, style: const TextStyle(fontSize: 12)),
